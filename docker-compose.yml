@@ -1,0 +1,116 @@
+version: '3'
+services:
+  opensearch-node-1:
+    build:
+      context: opensearch
+      dockerfile: Dockerfile
+    container_name: opensearch-node-1
+    environment:
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" # minimum and maximum Java heap size, recommend setting both to 50% of system RAM
+      - "DISABLE_INSTALL_DEMO_CONFIG=true" # Prevents execution of bundled demo script which installs demo certificates and security configurations to OpenSearch
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data
+      - ./certs/root-ca.pem:/usr/share/opensearch/config/root-ca.pem
+      - ./certs/admin.pem:/usr/share/opensearch/config/admin.pem
+      - ./certs/admin-key.pem:/usr/share/opensearch/config/admin-key.pem
+      - ./certs/node1.pem:/usr/share/opensearch/config/node1.pem
+      - ./certs/node1-key.pem:/usr/share/opensearch/config/node1-key.pem
+      - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - ./opensearch/security/config.yml:/usr/share/opensearch/config/opensearch-security/config.yml
+      - ./opensearch/security/tenants.yml:/usr/share/opensearch/config/opensearch-security/tenants.yml
+      - ./opensearch/security/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
+      - ./opensearch/security/roles_mapping.yml:/usr/share/opensearch/config/opensearch-security/roles_mapping.yml
+    ports:
+      - 9200:9200
+      - 9600:9600 # required for Performance Analyzer
+    networks:
+      - opensearch-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --insecure https://localhost:9200 -u 'admin:shouldfail' | grep -q -E '(Unauthorized|finally failed)",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.10.0 # Make sure the version of opensearch-dashboards matches the version of opensearch installed on other nodes
+    container_name: opensearch-dashboards
+      #    depends_on:
+      #      opensearch-node-1:
+      #        condition: service_healthy
+    ports:
+      - 5601:5601
+    expose:
+      - "5601"
+    volumes:
+      - ./opensearch-dashboard/opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+      - ./certs/root-ca.pem:/usr/share/opensearch-dashboards/config/root-ca.pem
+      - ./certs/client.pem:/usr/share/opensearch-dashboards/config/client.pem
+      - ./certs/client-key.pem:/usr/share/opensearch-dashboards/config/client-key.pem
+    networks:
+      - opensearch-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: opensearch-prometheus
+    command: "--config.file=/etc/prometheus/prometheus.yml --web.config.file=/etc/prometheus/web-config.yml --storage.tsdb.path=/prometheus --web.console.libraries=/usr/share/prometheus/console_libraries --web.console.templates=/usr/share/prometheus/consoles"
+    ports:
+      - 9090:9090
+    expose:
+      - "9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/web-config.yml:/etc/prometheus/web-config.yml
+      - ./certs/root-ca.pem:/etc/prometheus/root-ca.crt
+      - ./certs/prometheus.pem:/etc/prometheus/prometheus.pem
+      - ./certs/prometheus-key.pem:/etc/prometheus/prometheus-key.pem
+    networks:
+      - opensearch-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: opensearch-grafana
+    environment:
+      - GF_DEFAULT_INSTANCE_NAME=my-grafana
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    ports:
+      - 3000:3000
+    expose:
+      - "3000"
+    networks:
+      - opensearch-net
+
+  keycloak:
+    image: keycloak/keycloak:latest
+    container_name: opensearch-keycloak
+    command: "start-dev"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HTTPS_CERTIFICATE_FILE=/etc/x509/https/tls.crt
+      - KC_HTTPS_CERTIFICATE_KEY_FILE=/etc/x509/https/tls.key
+    ports:
+      - 8080:8080
+      - 8443:8443
+    expose:
+      - "8080"
+      - "8443"
+    volumes:
+      - ./certs/keycloak.pem:/etc/x509/https/tls.crt
+      - ./certs/keycloak-key.pem:/etc/x509/https/tls.key
+    networks:
+      - opensearch-net
+
+volumes:
+  opensearch-data1:
+
+networks:
+  opensearch-net:

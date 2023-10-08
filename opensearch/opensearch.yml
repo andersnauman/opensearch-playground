@@ -1,0 +1,19 @@
+cluster.name: cluster1
+bootstrap.memory_lock: true
+discovery.type: single-node
+network.bind_host: 0.0.0.0
+# network.publish_host: 1.2.3.4
+
+plugins.security.restapi.roles_enabled: ["all_access", "security_rest_api_access"]
+plugins.security.ssl.transport.pemcert_filepath: node1.pem
+plugins.security.ssl.transport.pemkey_filepath: node1-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: node1.pem
+plugins.security.ssl.http.pemkey_filepath: node1-key.pem
+plugins.security.ssl.http.pemtrustedcas_filepath: root-ca.pem
+plugins.security.authcz.admin_dn:
+  - 'CN=Admin,OU=UNIT,O=ORG,L=STOCKHOLM,ST=STOCKHOLM,C=SE'
+plugins.security.nodes_dn:
+  - 'CN=opensearch-node-1,OU=UNIT,O=ORG,L=STOCKHOLM,ST=STOCKHOLM,C=SE'
